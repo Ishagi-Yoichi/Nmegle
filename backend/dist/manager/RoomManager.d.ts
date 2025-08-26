@@ -1,7 +1,7 @@
 import type { User } from "../manager/UserManager.js";
 export declare class RoomManager {
-    constructor();
     private rooms;
+    constructor();
     createRoom(user1: User, user2: User): void;
     onOffer(roomId: string, sdp: string): void;
     onAnswer(roomId: string, sdp: string): void;
