@@ -1,20 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {Socket ,io} from "socket.io-client"
 
 const URL = "http://localhost:3000"
 
-export const Room = () => {
+export const Room = ({
+    name,
+    localAudioTrack,
+    localVideoTrack
+}: {
+    name: string,
+    localAudioTrack: MediaStreamTrack ,
+    localVideoTrack: MediaStreamTrack ,
+}) => {
     const [searchParams, setSearchParams] = useSearchParams();
     const [lobby,setLobby] = useState(true);
-    const name = searchParams.get('name');
+   // const name = searchParams.get('name');
     const [sendingPc,setSendingPc] = useState<null | Socket>(null);
     const [receivingPc,setReceivingPc] = useState<null | Socket>(null); 
-    const [remoteVideoTrack, setRemoteVideoTrack] = useState<null | MediaStreamTrack>(null);    
+    const [remoteVideoTrack, setRemoteVideoTrack] = useState< MediaStreamTrack | null>(null);    
     const [socket, setSocket] = useState<null | Socket>(null);
-    const [localVideoTrack, setLocalVideoTrack] = useState<MediaStreamTrack | null>(null);
     const [remoteAudioTrack, setRemoteAudioTrack] = useState<MediaStreamTrack | null>(null);
-    const [localAudioTrack, setLocalAudioTrack] = useState<MediaStreamTrack, null>(null);
+    const [remoteMediaStream, setRemoteMediaStream] = useState<MediaStream | null>(null);
+    const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
    // const [connected,setConnected] = useState(false)
     useEffect(() => {
      const socket = io(URL);
@@ -22,13 +30,20 @@ export const Room = () => {
         setLobby(false);
         const pc = new RTCPeerConnection();
         setSendingPc(pc);
-        const sdp= await pc.createOffer();
-        alert('send offer please')
-        socket.emit('offer',{
-            sdp,
-            roomId
-            
-        });
+        pc.addTrack(localAudioTrack);
+        pc.addTrack(localVideoTrack);
+
+        pc.onicecandidate = async ()=> {
+            const sdp= await pc.createOffer();
+            alert('send offer please')
+            socket.emit('offer',{
+                sdp,
+                roomId
+                
+            });
+        }
+
+       
      });
      socket.on('offer', async ({roomId,offer}) => {
         alert('send answer please')
@@ -36,21 +51,36 @@ export const Room = () => {
         const pc = new RTCPeerConnection();
         pc.setRemoteDescription(new RTCSessionDescription({sdp:offer,type:"offer"}));
         const sdp= await pc.createAnswer();
+        if(remoteVideoRef.current) {
+             remoteVideoRef.current.srcObject = new MediaStream();
+        }
+       
+        setRemoteMediaStream(new MediaStream());
         setReceivingPc(pc);
         pc.ontrack = (({track,type}) => {
             if(type == 'audio') {
-                setRemoteAudioTrack(track);
+                //setRemoteAudioTrack(track); 
+               // @ts-ignore
+                remoteVideoRef.current.srcObject.addTrack(track);
             } else {
-                setRemoteVideoTrack(track);
-            }
+                //setRemoteVideoTrack(track);
+                // @ts-ignore
+                remoteVideoRef.current.srcObject.addTrack(track);
+
+            }//@ts-ignore
+            remoteVideoRef.current.play();
         });
         socket.emit('answer',{
             roomId,
             sdp: sdp
         });
      });
-    socket.on("answer", ({roomId, answer}) => {
+
+    socket.on("answer", async ({roomId, answer}) => {
             setLobby(false);
+            const pc = new RTCPeerConnection();
+        pc.setRemoteDescription(new RTCSessionDescription({sdp:offer,type:"offer"}));
+        const sdp= await pc.createAnswer();
             setSendingPc(pc => {
                 pc?.setRemoteDescription({
                     type: "answer",
@@ -74,7 +104,7 @@ export const Room = () => {
         <div>
             hi {name}
            <video width={400} height={300}></video>
-           <video width={400} height={300}></video>
+           <video width={400} height={300} ref={remoteVideoRef}></video>
         </div>
     )
 }
