@@ -13,7 +13,7 @@ export class UserManager {
     addUser(socket, name) {
         this.users.push({ socket, name });
         this.queue.push(socket.id);
-        socket.send("lobby");
+        socket.emit("lobby");
         this.clearQueue();
         this.initHandlers(socket);
     }
